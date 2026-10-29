@@ -3,6 +3,7 @@ package dev.agentforge.invoices.validate;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +25,9 @@ public final class InvoiceValidator {
     /** Printed amounts are rounded to cents, so allow one cent of difference. */
     static final BigDecimal TOLERANCE = new BigDecimal("0.01");
 
+    /** Longer than any normal payment term (30/60/90 days are typical). */
+    static final long MAX_PAYMENT_TERM_DAYS = 180;
+
     public static List<Issue> validate(Invoice invoice) {
         List<Issue> issues = new ArrayList<>();
 
@@ -44,6 +48,15 @@ public final class InvoiceValidator {
         }
         if (issued != null && issued.isAfter(LocalDate.now())) {
             issues.add(new Issue(Level.WARNING, "issueDate", "Issue date " + issued + " is in the future"));
+        }
+        // Plausibility, not just validity: a misread digit ("2026" read as "2022") still gives a valid date,
+        // but it usually produces a payment term no real invoice has.
+        if (issued != null && due != null && ChronoUnit.DAYS.between(issued, due) > MAX_PAYMENT_TERM_DAYS) {
+            issues.add(new Issue(Level.ERROR, "issueDate", "Payment term of " + ChronoUnit.DAYS.between(issued, due)
+                    + " days (" + issued + " to " + due + ") is implausible; check both dates"));
+        }
+        if (issued != null && issued.isBefore(LocalDate.now().minusYears(1))) {
+            issues.add(new Issue(Level.WARNING, "issueDate", "Issue date " + issued + " is more than a year old"));
         }
 
         List<LineItem> lines = invoice.lineItems() == null ? List.of() : invoice.lineItems();

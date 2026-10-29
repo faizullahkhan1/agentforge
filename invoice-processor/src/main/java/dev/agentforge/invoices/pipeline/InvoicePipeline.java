@@ -2,12 +2,14 @@ package dev.agentforge.invoices.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,16 +19,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import dev.agentforge.invoices.agents.CategorizerAgent;
 import dev.agentforge.invoices.agents.ExtractorAgent;
+import dev.agentforge.invoices.extract.FileType;
+import dev.agentforge.invoices.extract.PageImages;
 import dev.agentforge.invoices.extract.PdfText;
 import dev.agentforge.invoices.model.Categorization;
 import dev.agentforge.invoices.model.Categorization.LineCategory;
 import dev.agentforge.invoices.model.ExpenseCategory;
 import dev.agentforge.invoices.model.Invoice;
+import dev.agentforge.invoices.pipeline.ProcessedInvoice.ExtractedFrom;
 import dev.agentforge.invoices.pipeline.ProcessedInvoice.Status;
 import dev.agentforge.invoices.pipeline.ProcessedInvoice.Step;
 import dev.agentforge.invoices.validate.InvoiceValidator;
 import dev.agentforge.invoices.validate.InvoiceValidator.Issue;
 import dev.agentforge.invoices.validate.InvoiceValidator.Level;
+import dev.langchain4j.data.message.Content;
+import dev.langchain4j.data.message.ImageContent;
+import dev.langchain4j.data.message.ImageContent.DetailLevel;
+import dev.langchain4j.data.message.TextContent;
 
 /**
  * A SEQUENTIAL pipeline: read PDF -> extract (AI) -> validate (Java) -> categorize (AI).
@@ -38,35 +47,50 @@ public class InvoicePipeline {
     private final ExtractorAgent extractor;
     private final CategorizerAgent categorizer;
     private final ObjectMapper objectMapper;
+    private final int maxPages;
 
-    public InvoicePipeline(ExtractorAgent extractor, CategorizerAgent categorizer, ObjectMapper objectMapper) {
+    public InvoicePipeline(ExtractorAgent extractor, CategorizerAgent categorizer, ObjectMapper objectMapper,
+                           @Value("${invoices.vision.max-pages}") int maxPages) {
         this.extractor = extractor;
         this.categorizer = categorizer;
         this.objectMapper = objectMapper;
+        this.maxPages = maxPages;
     }
 
-    public ProcessedInvoice process(String fileName, byte[] pdf) {
+    public ProcessedInvoice process(String fileName, byte[] bytes, FileType type) {
         long start = System.nanoTime();
         List<Step> steps = new ArrayList<>();
 
-        long t = System.nanoTime();
-        String text;
+        // Step 1: extraction. Text is cheaper and more exact, so use it whenever the PDF has a text layer;
+        // scans, photos and image files go to the vision model instead.
+        Invoice invoice;
+        ExtractedFrom extractedFrom;
         try {
-            text = PdfText.extract(pdf);
+            if (type == FileType.PDF) {
+                long t = System.nanoTime();
+                String text = PdfText.extract(bytes);
+                steps.add(new Step("read-pdf", false, millisSince(t)));
+                if (PdfText.hasTextLayer(text)) {
+                    t = System.nanoTime();
+                    invoice = extractor.extract(text);
+                    steps.add(new Step("extractor (text)", true, millisSince(t)));
+                    extractedFrom = ExtractedFrom.TEXT;
+                } else {
+                    t = System.nanoTime();
+                    List<byte[]> pages = PageImages.render(bytes, maxPages);
+                    steps.add(new Step("render-pages (" + pages.size() + ")", false, millisSince(t)));
+                    invoice = extractFromImages(pages, FileType.PNG, steps);
+                    extractedFrom = ExtractedFrom.VISION;
+                }
+            } else {
+                invoice = extractFromImages(List.of(bytes), type, steps);
+                extractedFrom = ExtractedFrom.VISION;
+            }
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Not a readable PDF: " + e.getMessage());
         }
-        if (!PdfText.hasTextLayer(text)) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "This PDF has no text layer (probably a scan). Scanned invoices need the vision step, which isn't built yet.");
-        }
-        steps.add(new Step("read-pdf", false, millisSince(t)));
 
-        t = System.nanoTime();
-        Invoice invoice = extractor.extract(text);
-        steps.add(new Step("extractor", true, millisSince(t)));
-
-        t = System.nanoTime();
+        long t = System.nanoTime();
         List<Issue> issues = InvoiceValidator.validate(invoice);
         steps.add(new Step("validator", false, millisSince(t)));
 
@@ -75,7 +99,26 @@ public class InvoicePipeline {
         steps.add(new Step("categorizer", true, millisSince(t)));
 
         Status status = issues.stream().anyMatch(i -> i.level() == Level.ERROR) ? Status.NEEDS_REVIEW : Status.READY;
-        return new ProcessedInvoice(fileName, status, invoice, categories, issues, steps, millisSince(start));
+        return new ProcessedInvoice(fileName, status, extractedFrom, invoice, categories, issues, steps,
+                millisSince(start));
+    }
+
+    private Invoice extractFromImages(List<byte[]> images, FileType type, List<Step> steps) {
+        long t = System.nanoTime();
+        Invoice invoice = extractor.extractFromImages(pageContents(images, type));
+        steps.add(new Step("extractor (vision)", true, millisSince(t)));
+        return invoice;
+    }
+
+    /** An instruction followed by every page image. HIGH detail, because invoice text is small. */
+    static List<Content> pageContents(List<byte[]> images, FileType type) {
+        List<Content> contents = new ArrayList<>();
+        contents.add(TextContent.from("Extract the invoice shown in "
+                + (images.size() == 1 ? "this image." : "these " + images.size() + " page images, in page order.")));
+        for (byte[] image : images) {
+            contents.add(ImageContent.from(Base64.getEncoder().encodeToString(image), type.mimeType(), DetailLevel.HIGH));
+        }
+        return contents;
     }
 
     private List<LineCategory> categorize(Invoice invoice) {

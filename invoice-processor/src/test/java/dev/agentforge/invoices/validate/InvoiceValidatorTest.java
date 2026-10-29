@@ -55,6 +55,19 @@ class InvoiceValidatorTest {
                 .extracting(Issue::field).containsExactly("dueDate");
     }
 
+    @Test
+    void misreadYearShowsUpAsImplausiblePaymentTerm() {
+        // Real case from a scanned invoice: "15.09.2026" was read as 2022-09-15
+        List<Issue> issues = InvoiceValidator.validate(invoice("2022-09-15", "2026-09-29",
+                List.of(line("Banner", "1", "10", "10")), "10", "0", "10"));
+
+        assertThat(issues).anySatisfy(i -> {
+            assertThat(i.level()).isEqualTo(Level.ERROR);
+            assertThat(i.field()).isEqualTo("issueDate");
+            assertThat(i.message()).contains("implausible");
+        });
+    }
+
     private static Invoice invoice(String issued, String due, List<LineItem> lines,
                                    String subtotal, String tax, String total) {
         return new Invoice("Acme Ltd", "INV-1", issued, due, "USD", lines,

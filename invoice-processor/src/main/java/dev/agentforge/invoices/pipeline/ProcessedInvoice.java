@@ -13,6 +13,7 @@ import dev.agentforge.invoices.validate.InvoiceValidator.Issue;
 public record ProcessedInvoice(
         String fileName,
         Status status,
+        ExtractedFrom extractedFrom,
         Invoice invoice,
         List<LineCategory> categories,
         List<Issue> issues,
@@ -21,6 +22,9 @@ public record ProcessedInvoice(
 ) {
 
     public enum Status { READY, NEEDS_REVIEW }
+
+    /** TEXT = read from the PDF's text layer; VISION = read from page images (scan, photo, image file). */
+    public enum ExtractedFrom { TEXT, VISION }
 
     /** Trace of one pipeline step: which one, whether it is an AI agent or plain Java, and how long it took. */
     public record Step(String name, boolean usesAi, long millis) {

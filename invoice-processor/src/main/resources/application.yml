@@ -21,6 +21,11 @@ langchain4j:
       response-format: json_schema
       strict-json-schema: true
 
+invoices:
+  vision:
+    # Scanned PDFs: how many pages to send to the vision model (each page image costs tokens)
+    max-pages: ${INVOICE_MAX_PAGES:3}
+
 management:
   endpoints:
     web:

@@ -6,11 +6,28 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import dev.agentforge.invoices.extract.FileType;
 import dev.agentforge.invoices.model.Categorization;
 import dev.agentforge.invoices.model.Categorization.LineCategory;
 import dev.agentforge.invoices.model.ExpenseCategory;
+import dev.langchain4j.data.message.Content;
+import dev.langchain4j.data.message.ImageContent;
+import dev.langchain4j.data.message.TextContent;
 
 class InvoicePipelineTest {
+
+    @Test
+    void pageContentsHaveInstructionThenOneHighDetailImagePerPage() {
+        List<Content> contents = InvoicePipeline.pageContents(List.of(new byte[]{1}, new byte[]{2}), FileType.PNG);
+
+        assertThat(contents).hasSize(3);
+        assertThat(((TextContent) contents.get(0)).text()).contains("2 page images");
+        assertThat(contents.subList(1, 3)).allSatisfy(c -> {
+            ImageContent image = (ImageContent) c;
+            assertThat(image.image().mimeType()).isEqualTo("image/png");
+            assertThat(image.detailLevel()).isEqualTo(ImageContent.DetailLevel.HIGH);
+        });
+    }
 
     @Test
     void alignsCategoriesToLineOrderAndFillsGapsWithOther() {
