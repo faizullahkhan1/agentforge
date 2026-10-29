@@ -1,0 +1,109 @@
+﻿{
+    "summary":  "7 issue(s) found by 4 agent(s): 2 critical, 4 high, 1 medium. Judge dropped 2 of 8 candidates and added 1.",
+    "findings":  [
+                     {
+                         "line":  7,
+                         "code":  "private static final String DB_PASSWORD = \"admin123\";",
+                         "severity":  "CRITICAL",
+                         "category":  "SECURITY",
+                         "title":  "Hard-coded database password",
+                         "explanation":  "Hard-coded secrets like database passwords can lead to unauthorized access if the source code is exposed.",
+                         "suggestion":  "Use environment variables or a secure vault to manage sensitive information."
+                     },
+                     {
+                         "line":  12,
+                         "code":  "ResultSet rs = stmt.executeQuery(\"SELECT * FROM users WHERE name = \u0027\" + username + \"\u0027\");",
+                         "severity":  "CRITICAL",
+                         "category":  "SECURITY",
+                         "title":  "SQL Injection vulnerability",
+                         "explanation":  "The SQL query is constructed using string concatenation, allowing for SQL injection if \u0027username\u0027 contains malicious input.",
+                         "suggestion":  "Use a PreparedStatement to safely parameterize the query."
+                     },
+                     {
+                         "line":  10,
+                         "code":  "public User findUser(String username) throws SQLException {",
+                         "severity":  "HIGH",
+                         "category":  "BUG",
+                         "title":  "Uncaught SQLException",
+                         "explanation":  "SQLException is thrown but not handled, which can lead to application crashes.",
+                         "suggestion":  "Wrap the method body in a try-catch block to handle SQLException."
+                     },
+                     {
+                         "line":  11,
+                         "code":  "Statement stmt = conn.createStatement();",
+                         "severity":  "HIGH",
+                         "category":  "BUG",
+                         "title":  "Possible NullPointerException",
+                         "explanation":  "The \u0027conn\u0027 variable may be null if not initialized, leading to a NullPointerException when creating a Statement.",
+                         "suggestion":  "Ensure \u0027conn\u0027 is initialized before use or check for null."
+                     },
+                     {
+                         "line":  21,
+                         "code":  "        for (String id : ids) {",
+                         "severity":  "HIGH",
+                         "category":  "PERFORMANCE",
+                         "title":  "N+1 Query Problem",
+                         "explanation":  "Executing a separate query for each user ID in a loop results in N+1 queries, which is inefficient and can lead to performance degradation.",
+                         "suggestion":  "Batch the queries or use a single query to fetch all users at once."
+                     },
+                     {
+                         "line":  28,
+                         "code":  "        }",
+                         "severity":  "HIGH",
+                         "category":  "PERFORMANCE",
+                         "title":  "Resource Leak",
+                         "explanation":  "PreparedStatement and ResultSet are not closed, which can lead to resource leaks and exhaustion of database connections.",
+                         "suggestion":  "Use try-with-resources to ensure that PreparedStatement and ResultSet are closed properly."
+                     },
+                     {
+                         "line":  37,
+                         "code":  "        return total / users.size();",
+                         "severity":  "MEDIUM",
+                         "category":  "PERFORMANCE",
+                         "title":  "Potential Division by Zero",
+                         "explanation":  "If the users list is empty, this will cause a division by zero error, which can lead to runtime exceptions.",
+                         "suggestion":  "Check if users.size() is greater than zero before performing the division."
+                     }
+                 ],
+    "dropped":  [
+                    {
+                        "foundBy":  "performance",
+                        "line":  12,
+                        "title":  "SQL Injection Risk",
+                        "reason":  "Duplicate finding; SQL injection is already covered."
+                    },
+                    {
+                        "foundBy":  "bugs",
+                        "line":  37,
+                        "title":  "Division by zero potential",
+                        "reason":  "Duplicate finding; division by zero is already covered."
+                    }
+                ],
+    "agents":  [
+                   {
+                       "agent":  "security",
+                       "findings":  2,
+                       "millis":  2241,
+                       "error":  null
+                   },
+                   {
+                       "agent":  "performance",
+                       "findings":  4,
+                       "millis":  3722,
+                       "error":  null
+                   },
+                   {
+                       "agent":  "bugs",
+                       "findings":  2,
+                       "millis":  1665,
+                       "error":  null
+                   },
+                   {
+                       "agent":  "judge",
+                       "findings":  7,
+                       "millis":  3311,
+                       "error":  null
+                   }
+               ],
+    "totalMillis":  7038
+}

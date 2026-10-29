@@ -1,0 +1,101 @@
+﻿{
+    "summary":  "8 issue(s) found by 3 agent(s): 2 critical, 5 high, 1 low.",
+    "findings":  [
+                     {
+                         "line":  7,
+                         "code":  "private static final String DB_PASSWORD = \"admin123\";",
+                         "severity":  "CRITICAL",
+                         "category":  "SECURITY",
+                         "title":  "Hard-coded database password",
+                         "explanation":  "Hard-coded credentials can be easily extracted from the source code, leading to unauthorized access to the database.",
+                         "suggestion":  "Remove hard-coded credentials and use a secure method to manage secrets, such as environment variables or a secrets management service."
+                     },
+                     {
+                         "line":  12,
+                         "code":  "ResultSet rs = stmt.executeQuery(\"SELECT * FROM users WHERE name = \u0027\" + username + \"\u0027\");",
+                         "severity":  "CRITICAL",
+                         "category":  "SECURITY",
+                         "title":  "SQL Injection vulnerability",
+                         "explanation":  "The SQL query is constructed using string concatenation, which allows for SQL injection attacks if the username is manipulated by an attacker.",
+                         "suggestion":  "Use a PreparedStatement to safely parameterize the query: `PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM users WHERE name = ?\"); ps.setString(1, username);`."
+                     },
+                     {
+                         "line":  11,
+                         "code":  "Statement stmt = conn.createStatement();",
+                         "severity":  "HIGH",
+                         "category":  "PERFORMANCE",
+                         "title":  "Database query inside a loop",
+                         "explanation":  "Creating a new Statement for each user lookup can lead to performance degradation due to excessive resource allocation and database load.",
+                         "suggestion":  "Consider using a single PreparedStatement outside the loop for batch processing."
+                     },
+                     {
+                         "line":  11,
+                         "code":  "Statement stmt = conn.createStatement();",
+                         "severity":  "HIGH",
+                         "category":  "BUG",
+                         "title":  "Possible NullPointerException",
+                         "explanation":  "The \u0027conn\u0027 variable may be null if not initialized, leading to a NullPointerException when creating a Statement.",
+                         "suggestion":  "Ensure \u0027conn\u0027 is initialized before use or check for null."
+                     },
+                     {
+                         "line":  12,
+                         "code":  "ResultSet rs = stmt.executeQuery(\"SELECT * FROM users WHERE name = \u0027\" + username + \"\u0027\");",
+                         "severity":  "HIGH",
+                         "category":  "PERFORMANCE",
+                         "title":  "SQL query vulnerable to N+1 problem",
+                         "explanation":  "Executing a query for each user lookup can lead to N+1 query issues, significantly increasing database load and response time.",
+                         "suggestion":  "Refactor to retrieve all necessary users in a single query."
+                     },
+                     {
+                         "line":  22,
+                         "code":  "PreparedStatement ps = conn.prepareStatement(\"SELECT * FROM users WHERE id = ?\");",
+                         "severity":  "HIGH",
+                         "category":  "PERFORMANCE",
+                         "title":  "Database query inside a loop",
+                         "explanation":  "Preparing a new PreparedStatement for each id in the loop is inefficient and can lead to performance issues.",
+                         "suggestion":  "Prepare the statement once outside the loop and reuse it."
+                     },
+                     {
+                         "line":  37,
+                         "code":  "return total / users.size();",
+                         "severity":  "HIGH",
+                         "category":  "BUG",
+                         "title":  "Possible Division by Zero",
+                         "explanation":  "If \u0027users\u0027 is empty, users.size() will be 0, causing a division by zero error.",
+                         "suggestion":  "Check if users.size() is zero before performing the division."
+                     },
+                     {
+                         "line":  28,
+                         "code":  "}",
+                         "severity":  "LOW",
+                         "category":  "PERFORMANCE",
+                         "title":  "Resource leak: ResultSet not closed",
+                         "explanation":  "ResultSet is not closed after use, which can lead to resource leaks and potential memory issues.",
+                         "suggestion":  "Use try-with-resources to ensure ResultSet is closed."
+                     }
+                 ],
+    "dropped":  [
+
+                ],
+    "agents":  [
+                   {
+                       "agent":  "security",
+                       "findings":  2,
+                       "millis":  4577,
+                       "error":  null
+                   },
+                   {
+                       "agent":  "performance",
+                       "findings":  5,
+                       "millis":  5081,
+                       "error":  null
+                   },
+                   {
+                       "agent":  "bugs",
+                       "findings":  2,
+                       "millis":  3531,
+                       "error":  null
+                   }
+               ],
+    "totalMillis":  5104
+}

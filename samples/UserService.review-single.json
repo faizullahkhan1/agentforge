@@ -1,0 +1,41 @@
+﻿{
+    "summary":  "3 issue(s) found by 1 agent(s): 1 critical, 2 high.",
+    "findings":  [
+                     {
+                         "line":  7,
+                         "code":  "private static final String DB_PASSWORD = \"admin123\";",
+                         "severity":  "CRITICAL",
+                         "category":  "SECURITY",
+                         "title":  "Hardcoded database password",
+                         "explanation":  "Storing sensitive information like database passwords in the source code can lead to security breaches if the code is exposed.",
+                         "suggestion":  "Use environment variables or a secure vault to manage sensitive information."
+                     },
+                     {
+                         "line":  11,
+                         "code":  "Statement stmt = conn.createStatement();",
+                         "severity":  "HIGH",
+                         "category":  "SECURITY",
+                         "title":  "SQL Injection vulnerability",
+                         "explanation":  "Using a Statement with user input directly in the SQL query allows for SQL injection attacks, compromising the database.",
+                         "suggestion":  "Use PreparedStatement for all SQL queries that include user input."
+                     },
+                     {
+                         "line":  37,
+                         "code":  "return total / users.size();",
+                         "severity":  "HIGH",
+                         "category":  "BUG",
+                         "title":  "Potential division by zero",
+                         "explanation":  "If the users list is empty, this will cause a division by zero error, leading to an exception.",
+                         "suggestion":  "Check if users.size() is greater than zero before performing the division."
+                     }
+                 ],
+    "agents":  [
+                   {
+                       "agent":  "generalist",
+                       "findings":  3,
+                       "millis":  5225,
+                       "error":  null
+                   }
+               ],
+    "totalMillis":  5244
+}

@@ -1,0 +1,72 @@
+# docker compose up -d                  -> Postgres + pr-reviewer app
+# docker compose --profile local-llm up -d  -> also starts Ollama (free local LLM, optional)
+# Values like ${OPENAI_API_KEY} are read from the .env file next to this file.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17          # Postgres with the pgvector extension (for RAG later)
+    environment:
+      POSTGRES_DB: agentforge
+      POSTGRES_USER: ${POSTGRES_USER:-agentforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentforge}
+    ports:
+      - "5433:5432"                        # host 5433 -> container 5432, avoids clashing with a local Postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data    # named volume: data survives container restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentforge} -d agentforge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pr-reviewer:
+    build:
+      context: .
+      dockerfile: pr-reviewer/Dockerfile
+    ports:
+      - "${APP_PORT:-8090}:8080"            # host 8090 by default (8080 is often taken, e.g. by Oracle)
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_JUDGE_MODEL: ${OPENAI_JUDGE_MODEL:-gpt-4.1}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      # Inside the compose network, containers reach each other by service name ("postgres"), on the container port
+      DB_URL: jdbc:postgresql://postgres:5432/agentforge
+      POSTGRES_USER: ${POSTGRES_USER:-agentforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentforge}
+    depends_on:
+      postgres:
+        condition: service_healthy         # wait until Postgres actually accepts connections
+
+  # GitHub can't reach "localhost" on your laptop. smee.io gives you a public URL; GitHub sends
+  # webhooks there, and this container keeps a connection open to smee.io and forwards each
+  # event to the app over the compose network. Not needed once the app is deployed publicly.
+  smee:
+    image: node:22-alpine
+    profiles: ["webhook"]                  # docker compose --profile webhook up -d
+    environment:
+      SMEE_URL: ${SMEE_URL:-}
+    # Checked inside the container: a ${SMEE_URL:?} guard would make compose fail even without this profile.
+    # $$ is an escaped $, so the shell in the container (not compose) reads the variable.
+    command:
+      - sh
+      - -c
+      - >-
+        if [ -z "$$SMEE_URL" ]; then echo "Set SMEE_URL in .env (get one at https://smee.io/new)"; exit 1; fi;
+        exec npx --yes smee-client@5.0.0 --url "$$SMEE_URL" --target http://pr-reviewer:8080/api/github/webhook
+    depends_on:
+      - pr-reviewer
+    restart: on-failure:5
+
+  ollama:
+    image: ollama/ollama
+    profiles: ["local-llm"]                # only starts when you ask for this profile
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama               # downloaded models are kept here
+
+volumes:
+  pgdata:
+  ollama:

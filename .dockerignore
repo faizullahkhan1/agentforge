@@ -1,0 +1,6 @@
+# Keep secrets and junk out of the Docker build context
+.env
+.git
+**/target
+.idea
+*.iml

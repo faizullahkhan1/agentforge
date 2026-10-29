@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: pr-reviewer
+  # Java 21 virtual threads for web requests and @Async tasks (cheap threads, great for waiting on LLMs)
+  threads:
+    virtual:
+      enabled: true
+  # When running outside Docker (IntelliJ / mvn), read secrets from the .env file in the repo root.
+  # Inside Docker the file isn't there; docker-compose passes the same values as environment variables.
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/agentforge}
+    username: ${POSTGRES_USER:agentforge}
+    password: ${POSTGRES_PASSWORD:agentforge}
+
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: ${OPENAI_API_KEY}
+      model-name: ${OPENAI_MODEL:gpt-4o-mini}
+      temperature: 0.2
+      # Structured output: OpenAI is forced to return JSON that exactly matches our record's schema
+      response-format: json_schema
+      strict-json-schema: true
+
+agentforge:
+  judge:
+    # One call per review, so it can use a stronger model than the specialists (see JudgeConfig)
+    model-name: ${OPENAI_JUDGE_MODEL:gpt-4.1}
+  github:
+    api-url: https://api.github.com
+    # Optional for dry runs on public repos, required to post review comments
+    token: ${GITHUB_TOKEN:}
+    # Must match the secret in the repo's webhook settings. Empty = every webhook is rejected.
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+    # Cost guards: every reviewed file costs 4 LLM calls
+    max-files: ${REVIEW_MAX_FILES:5}
+    max-lines-per-file: ${REVIEW_MAX_LINES:800}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
