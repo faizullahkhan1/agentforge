@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,6 +94,43 @@ class InvoiceRepositoryTest {
                 .extracting(InvoiceRepository.ExportRow::invoiceId).containsExactly(september, september);
         assertThat(repository.approvedLines(LocalDate.of(2030, 1, 1), null))
                 .extracting(InvoiceRepository.ExportRow::invoiceId).containsExactly(september, september, october, october);
+    }
+
+    @Test
+    void correctionUpdatesValuesKeepsAnAuditTrailAndIsBlockedOnceDecided() {
+        long id = repository.save(processed("Fix Ltd", "F-1", "2022-09-15", Status.NEEDS_REVIEW), "1".repeat(64));
+        Invoice corrected = new Invoice("Fix Ltd", "F-1", "2026-09-15", "", "EUR", List.of(
+                new Invoice.LineItem("Pro plan", new BigDecimal("1"), new BigDecimal("100"), new BigDecimal("100.00")),
+                new Invoice.LineItem("Misc", new BigDecimal("1"), new BigDecimal("20"), new BigDecimal("20.00"))),
+                new BigDecimal("120.00"), BigDecimal.ZERO, new BigDecimal("120.00"));
+        List<Corrections.Change> changes = List.of(
+                new Corrections.Change("issueDate", "2022-09-15", "2026-09-15"),
+                new Corrections.Change("line 2 category", "OTHER", "OFFICE_SUPPLIES"));
+
+        boolean saved = repository.saveCorrection(id, corrected, Map.of(1, ExpenseCategory.OFFICE_SUPPLIES), List.of(),
+                StoredStatus.READY, changes, "year was misread");
+
+        InvoiceDetail detail = repository.find(id).orElseThrow();
+        assertThat(saved).isTrue();
+        assertThat(detail.summary().status()).isEqualTo("READY");
+        assertThat(detail.summary().issueDate()).isEqualTo(LocalDate.of(2026, 9, 15));
+        assertThat(detail.issuesJson()).isEqualTo("[]");
+        assertThat(detail.lines().get(1).category()).isEqualTo("OFFICE_SUPPLIES");
+        assertThat(detail.corrections()).extracting(InvoiceRepository.CorrectionEntry::field, InvoiceRepository.CorrectionEntry::note)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("issueDate", "year was misread"),
+                        org.assertj.core.groups.Tuple.tuple("line 2 category", "year was misread"));
+
+        repository.decide(id, StoredStatus.APPROVED, null, EnumSet.of(StoredStatus.READY, StoredStatus.NEEDS_REVIEW));
+        assertThat(repository.saveCorrection(id, corrected, Map.of(), List.of(), StoredStatus.READY, changes, "too late"))
+                .isFalse();
+        assertThat(repository.find(id).orElseThrow().corrections()).hasSize(2); // nothing added after approval
+    }
+
+    @Test
+    void duplicateLookupCanIgnoreTheInvoiceItself() {
+        long id = repository.save(processed("Self Ltd", "S-1", "2026-09-15", Status.READY), "2".repeat(64));
+        assertThat(repository.findIdByVendorAndNumber("Self Ltd", "S-1", id)).isEmpty();
+        assertThat(repository.findIdByVendorAndNumber("Self Ltd", "S-1")).contains(id);
     }
 
     @Test

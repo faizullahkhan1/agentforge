@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import dev.agentforge.invoices.extract.FileType;
+import dev.agentforge.invoices.store.Corrections.Correction;
 import dev.agentforge.invoices.store.CsvExport;
 import dev.agentforge.invoices.store.InvoiceRepository;
 import dev.agentforge.invoices.store.InvoiceRepository.InvoiceDetail;
@@ -61,6 +63,15 @@ public class InvoiceController {
     @GetMapping("/api/invoices/{id}")
     public InvoiceDetail get(@PathVariable long id) {
         return service.get(id);
+    }
+
+    /**
+     * Fix values the AI misread, then the checks run again. Only send what changes, e.g.
+     * {"note": "quantity misread", "lines": [{"line": 1, "quantity": 5}]}
+     */
+    @PatchMapping("/api/invoices/{id}")
+    public InvoiceDetail correct(@PathVariable long id, @RequestBody Correction correction) {
+        return service.correct(id, correction);
     }
 
     @PostMapping("/api/invoices/{id}/approve")

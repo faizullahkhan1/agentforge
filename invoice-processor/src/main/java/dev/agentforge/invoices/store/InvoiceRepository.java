@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import dev.agentforge.invoices.model.Categorization.LineCategory;
+import dev.agentforge.invoices.model.ExpenseCategory;
 import dev.agentforge.invoices.model.Invoice;
 import dev.agentforge.invoices.pipeline.ProcessedInvoice;
 
@@ -36,7 +38,11 @@ public class InvoiceRepository {
 
     public record InvoiceDetail(InvoiceSummary summary, String fileName, LocalDate dueDate, BigDecimal subtotal,
                                 BigDecimal tax, String issuesJson, String reviewNote, OffsetDateTime reviewedAt,
-                                List<StoredLine> lines) {
+                                List<StoredLine> lines, List<CorrectionEntry> corrections) {
+    }
+
+    public record CorrectionEntry(String field, String oldValue, String newValue, String note,
+                                  OffsetDateTime correctedAt) {
     }
 
     /** One CSV row: an approved invoice's line item plus the invoice fields an accountant needs next to it. */
@@ -67,16 +73,69 @@ public class InvoiceRepository {
 
     /** Same vendor + same invoice number (ignoring case and spaces) = probably the same invoice, sent twice. */
     public Optional<Long> findIdByVendorAndNumber(String vendorName, String invoiceNumber) {
+        return findIdByVendorAndNumber(vendorName, invoiceNumber, -1);
+    }
+
+    /** Same, but ignoring one invoice: when re-checking a corrected invoice, it must not match itself. */
+    public Optional<Long> findIdByVendorAndNumber(String vendorName, String invoiceNumber, long excludeId) {
         if (vendorName == null || vendorName.isBlank() || invoiceNumber == null || invoiceNumber.isBlank()) {
             return Optional.empty();
         }
         return jdbc.sql("""
                         SELECT id FROM invoices.invoice
                         WHERE lower(trim(vendor_name)) = lower(trim(?)) AND lower(trim(invoice_number)) = lower(trim(?))
-                          AND status <> 'REJECTED'
+                          AND status <> 'REJECTED' AND id <> ?
                         ORDER BY id LIMIT 1
                         """)
-                .params(vendorName, invoiceNumber).query(Long.class).optional();
+                .params(vendorName, invoiceNumber, excludeId).query(Long.class).optional();
+    }
+
+    /**
+     * Saves a reviewer's corrections: new values, re-checked issues and status, and one audit row per change.
+     * Like decide(), the "is it still open?" check is part of the UPDATE, so an invoice approved a moment
+     * ago can't be changed afterwards.
+     *
+     * @return false if the invoice is no longer READY or NEEDS_REVIEW (nothing is written then)
+     */
+    @Transactional
+    public boolean saveCorrection(long id, Invoice inv, Map<Integer, ExpenseCategory> newCategories, List<?> issues,
+                                  StoredStatus status, List<Corrections.Change> changes, String note) {
+        int updated = jdbc.sql("""
+                        UPDATE invoices.invoice
+                        SET vendor_name = ?, invoice_number = ?, issue_date = ?, due_date = ?, currency = ?,
+                            subtotal = ?, tax = ?, total = ?, issues = ?::jsonb, status = ?
+                        WHERE id = ? AND status IN ('READY', 'NEEDS_REVIEW')
+                        """)
+                .params(inv.vendorName(), inv.invoiceNumber(), dateOrNull(inv.issueDate()), dateOrNull(inv.dueDate()),
+                        inv.currency(), inv.subtotal(), inv.tax(), inv.total(), toJson(issues), status.name(), id)
+                .update();
+        if (updated == 0) {
+            return false;
+        }
+        List<Invoice.LineItem> lines = inv.lineItems();
+        for (int i = 0; i < lines.size(); i++) {
+            Invoice.LineItem line = lines.get(i);
+            jdbc.sql("""
+                            UPDATE invoices.invoice_line SET description = ?, quantity = ?, unit_price = ?, amount = ?
+                            WHERE invoice_id = ? AND line_index = ?
+                            """)
+                    .params(line.description(), line.quantity(), line.unitPrice(), line.amount(), id, i)
+                    .update();
+        }
+        newCategories.forEach((index, category) -> jdbc.sql("""
+                        UPDATE invoices.invoice_line SET category = ?, category_reason = 'set by reviewer'
+                        WHERE invoice_id = ? AND line_index = ?
+                        """)
+                .params(category.name(), id, index).update());
+        for (Corrections.Change change : changes) {
+            jdbc.sql("""
+                            INSERT INTO invoices.invoice_correction (invoice_id, field, old_value, new_value, note)
+                            VALUES (?, ?, ?, ?, ?)
+                            """)
+                    .params(id, change.field(), change.oldValue(), change.newValue(), note)
+                    .update();
+        }
+        return true;
     }
 
     @Transactional
@@ -134,8 +193,13 @@ public class InvoiceRepository {
                                     FROM invoices.invoice_line WHERE invoice_id = ? ORDER BY line_index
                                     """)
                             .param(id).query(StoredLine.class).list();
+                    List<CorrectionEntry> corrections = jdbc.sql("""
+                                    SELECT field, old_value, new_value, note, corrected_at
+                                    FROM invoices.invoice_correction WHERE invoice_id = ? ORDER BY id
+                                    """)
+                            .param(id).query(CorrectionEntry.class).list();
                     return new InvoiceDetail(summary, d.fileName(), d.dueDate(), d.subtotal(), d.tax(), d.issuesJson(),
-                            d.reviewNote(), d.reviewedAt(), lines);
+                            d.reviewNote(), d.reviewedAt(), lines, corrections);
                 });
     }
 
