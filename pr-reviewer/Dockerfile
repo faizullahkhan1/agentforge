@@ -4,14 +4,16 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
-# Copy only the poms first and download dependencies. Docker caches this layer,
-# so rebuilding after a code change doesn't re-download the internet.
+# Maven reads every module listed in the parent pom, so all module poms must be here,
+# even though only pr-reviewer gets built.
 COPY pom.xml .
 COPY pr-reviewer/pom.xml pr-reviewer/
-RUN mvn -B -q -pl pr-reviewer -am dependency:go-offline
-
+COPY invoice-processor/pom.xml invoice-processor/
 COPY pr-reviewer/src pr-reviewer/src
-RUN mvn -B -q -pl pr-reviewer -am package -DskipTests
+
+# Cache mount: Maven's download folder (/root/.m2) is kept by Docker between builds, even when
+# a pom changes, so only NEW dependencies get downloaded. It is not stored in the image.
+RUN --mount=type=cache,target=/root/.m2 mvn -B -q -pl pr-reviewer -am package -DskipTests
 
 # ---- Stage 2: small runtime image, just a JRE and the jar ----
 FROM eclipse-temurin:21-jre
