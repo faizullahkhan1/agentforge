@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 
+import dev.agentforge.core.run.Steps;
 import dev.agentforge.prreviewer.github.GitHubModels.CreateReview;
 import dev.agentforge.prreviewer.github.GitHubModels.PullRequest;
 import dev.agentforge.prreviewer.github.GitHubModels.PullRequestFile;
@@ -75,7 +76,7 @@ public class PullRequestReviewService {
             runs.complete(runId, result.headSha(), result.commentCount(), result.reviewUrl(), result.totalMillis());
             return result;
         } catch (RuntimeException e) {
-            runs.fail(runId, e.getMessage(), (System.nanoTime() - start) / 1_000_000);
+            runs.fail(runId, e.getMessage(), Steps.millisSince(start));
             throw e;
         }
     }
@@ -133,7 +134,7 @@ public class PullRequestReviewService {
             reviewUrl = posted.htmlUrl();
         }
         return new PullRequestReview(runId, owner + "/" + repo + "#" + number, sha, reviewedSince, fileReviews, skipped,
-                comments.size(), !dryRun, reviewUrl, (System.nanoTime() - start) / 1_000_000);
+                comments.size(), !dryRun, reviewUrl, Steps.millisSince(start));
     }
 
     /**

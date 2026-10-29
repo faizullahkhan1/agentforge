@@ -212,10 +212,16 @@ mvn test
 
 - **Unit tests** cover the deterministic logic: line correction, deduplication, judge verdicts, diff parsing and webhook signatures (checked against GitHub's own example) for the reviewer; invoice math and plausibility, file type detection, scanned-PDF rendering, corrections and CSV escaping for the invoices.
 - **Repository tests run against a real Postgres** started by Testcontainers, so Docker must be running.
+- **An application startup test per app** boots the whole Spring context (dummy API key, no AI calls), so wiring problems fail the build instead of only showing up in Docker.
 
 ### Project layout
 
 ```
+agentforge-core/src/main/java/dev/agentforge/core/   shared library used by both apps
+├── ai/               OpenAiModels: models with strict JSON-schema output
+├── run/              Parallel: agent calls on virtual threads; Steps: step timing and traces
+└── eval/             EvalSupport: settings and report files for the evals
+
 pr-reviewer/src/main/java/dev/agentforge/prreviewer/
 ├── review/           orchestration (parallel agents + judge), findings, reports
 │   └── agents/       specialist and judge agents, shared prompts, judge model config
@@ -273,5 +279,5 @@ The scoring logic itself is unit-tested and runs in every normal `mvn test`.
 - [x] PR Reviewer: parallel specialists + judge, GitHub reviews, signed webhooks, review history
 - [x] Invoice Processor: text and vision extraction, Java validation, categories, duplicates, review queue with corrections, CSV export
 - [x] Evaluation suite: answer keys, repeated runs, recall / false positives / silent misreads ([baseline](docs/evals.md))
-- [ ] `agentforge-core`: extract the shared agent/pipeline engine from both apps
+- [x] `agentforge-core`: shared model setup, parallel agent calls, step tracing and eval helpers, extracted from both apps (behaviour unchanged, [checked with the evals](docs/evals.md))
 - [ ] Trace and cost dashboard, GitHub App, deployment

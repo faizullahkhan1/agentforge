@@ -5,13 +5,12 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,6 +22,8 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import dev.agentforge.core.run.Parallel;
+import dev.agentforge.core.run.Steps;
 import dev.agentforge.prreviewer.review.ReviewReport.AgentRun;
 import dev.agentforge.prreviewer.review.ReviewReport.DroppedFinding;
 import dev.agentforge.prreviewer.review.agents.BugReviewAgent;
@@ -57,7 +58,7 @@ public class ReviewService {
     record Judgement(List<ReviewFinding> findings, List<DroppedFinding> dropped, int added) {
     }
 
-    private record Outcome(AgentRun run, List<ReviewFinding> findings) {
+    private record AgentOutput(AgentRun run, List<ReviewFinding> findings) {
     }
 
     private final List<NamedReviewer> generalist;
@@ -96,16 +97,12 @@ public class ReviewService {
         String numbered = numberLines(code);
         String[] lines = code.split("\\R", -1);
 
-        // Step 1: one virtual thread per agent, all LLM calls in flight at once,
-        // so this takes roughly as long as the slowest agent, not the sum of all of them.
-        List<Outcome> outcomes;
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<CompletableFuture<Outcome>> futures = reviewers.stream()
-                    .map(r -> CompletableFuture.supplyAsync(() -> runAgent(r, language, numbered), executor))
-                    .toList();
-            outcomes = futures.stream().map(CompletableFuture::join).toList();
-        }
-        List<AgentRun> runs = new ArrayList<>(outcomes.stream().map(Outcome::run).toList());
+        // Step 1: all agents at once (core's Parallel: one virtual thread each), so this takes roughly
+        // as long as the slowest agent. A failed agent shows up in the trace and adds no findings.
+        Map<String, Callable<ReviewResult>> calls = new LinkedHashMap<>();
+        reviewers.forEach(r -> calls.put(r.name(), () -> r.reviewer().review(language, numbered)));
+        List<AgentOutput> outcomes = Parallel.runAll(calls).stream().map(ReviewService::toOutput).toList();
+        List<AgentRun> runs = new ArrayList<>(outcomes.stream().map(AgentOutput::run).toList());
 
         // Step 2: merge, fix line numbers, drop exact duplicates, number them for the judge
         List<Candidate> candidates = toCandidates(outcomes, lines);
@@ -124,7 +121,7 @@ public class ReviewService {
                 error = e.getMessage();
                 judgement = new Judgement(candidates.stream().map(Candidate::finding).toList(), List.of(), 0);
             }
-            runs.add(new AgentRun(judgeName, judgement.findings().size(), millisSince(judgeStart), error));
+            runs.add(new AgentRun(judgeName, judgement.findings().size(), Steps.millisSince(judgeStart), error));
         } else {
             judgement = new Judgement(candidates.stream().map(Candidate::finding).toList(), List.of(), 0);
         }
@@ -137,23 +134,20 @@ public class ReviewService {
             summary += " Judge dropped " + judgement.dropped().size() + " of " + candidates.size()
                     + " candidates and added " + judgement.added() + ".";
         }
-        return new ReviewReport(summary, findings, judgement.dropped(), runs, millisSince(start));
+        return new ReviewReport(summary, findings, judgement.dropped(), runs, Steps.millisSince(start));
     }
 
-    private Outcome runAgent(NamedReviewer reviewer, String language, String numberedCode) {
-        long start = System.nanoTime();
-        try {
-            ReviewResult result = reviewer.reviewer().review(language, numberedCode);
-            List<ReviewFinding> findings = result.findings() == null ? List.of() : result.findings();
-            return new Outcome(new AgentRun(reviewer.name(), findings.size(), millisSince(start), null), findings);
-        } catch (RuntimeException e) {
-            // One failing agent should not sink the whole review
-            log.warn("Agent '{}' failed", reviewer.name(), e);
-            return new Outcome(new AgentRun(reviewer.name(), 0, millisSince(start), e.getMessage()), List.of());
+    /** One failing agent should not sink the whole review: it becomes an AgentRun with an error and no findings. */
+    private static AgentOutput toOutput(Parallel.Outcome<ReviewResult> outcome) {
+        if (!outcome.succeeded()) {
+            log.warn("Agent '{}' failed", outcome.name(), outcome.error());
+            return new AgentOutput(new AgentRun(outcome.name(), 0, outcome.millis(), outcome.errorMessage()), List.of());
         }
+        List<ReviewFinding> findings = outcome.value().findings() == null ? List.of() : outcome.value().findings();
+        return new AgentOutput(new AgentRun(outcome.name(), findings.size(), outcome.millis(), null), findings);
     }
 
-    private static List<Candidate> toCandidates(List<Outcome> outcomes, String[] lines) {
+    private static List<Candidate> toCandidates(List<AgentOutput> outcomes, String[] lines) {
         List<Candidate> unnumbered = outcomes.stream()
                 .flatMap(o -> o.findings().stream().map(f -> new Candidate(0, o.run().agent(), fixLine(f, lines))))
                 .toList();
@@ -290,7 +284,4 @@ public class ReviewService {
         return text == null ? "" : Arrays.stream(text.split("\\R")).filter(s -> !s.isBlank()).findFirst().orElse("");
     }
 
-    private static long millisSince(long startNanos) {
-        return (System.nanoTime() - startNanos) / 1_000_000;
-    }
 }

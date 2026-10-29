@@ -1,4 +1,4 @@
-package dev.agentforge.prreviewer.eval;
+package dev.agentforge.core.eval;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -8,11 +8,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
-/** Settings and file helpers shared by the evals. */
-final class EvalSupport {
+/**
+ * Settings, paths and report files for the evals (tests that call the real API, see docs/evals.md).
+ * Lives in core, not in a test folder, so both apps share one copy; it uses only the JDK.
+ */
+public final class EvalSupport {
 
     /** The repo root, found by walking up from the module folder Maven runs tests in. */
-    static Path repoRoot() {
+    public static Path repoRoot() {
         Path dir = Path.of("").toAbsolutePath();
         while (dir != null && !Files.isDirectory(dir.resolve("samples"))) {
             dir = dir.getParent();
@@ -24,7 +27,7 @@ final class EvalSupport {
     }
 
     /** Environment variable first, then the repo-root .env file (same order as the apps use). */
-    static Optional<String> setting(String name) {
+    public static Optional<String> setting(String name) {
         String env = System.getenv(name);
         if (env != null && !env.isBlank()) {
             return Optional.of(env.strip());
@@ -46,21 +49,21 @@ final class EvalSupport {
         }
     }
 
-    static String setting(String name, String defaultValue) {
+    public static String setting(String name, String defaultValue) {
         return setting(name).orElse(defaultValue);
     }
 
-    static String requiredSetting(String name) {
+    public static String requiredSetting(String name) {
         return setting(name).orElseThrow(() -> new IllegalStateException(
                 name + " is not set (as an environment variable or in .env); evals call the real API"));
     }
 
-    static int intProperty(String name, int defaultValue) {
+    public static int intProperty(String name, int defaultValue) {
         return Integer.parseInt(System.getProperty(name, String.valueOf(defaultValue)));
     }
 
     /** Writes the report to eval-results/ (git-ignored) and returns its path. */
-    static Path writeReport(String prefix, String markdown) throws IOException {
+    public static Path writeReport(String prefix, String markdown) throws IOException {
         Path dir = repoRoot().resolve("eval-results");
         Files.createDirectories(dir);
         Path file = dir.resolve(prefix + "-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".md");
@@ -68,7 +71,7 @@ final class EvalSupport {
         return file;
     }
 
-    static String percent(long part, long whole) {
+    public static String percent(long part, long whole) {
         return whole == 0 ? "-" : Math.round(100.0 * part / whole) + "%";
     }
 

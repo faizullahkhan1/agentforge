@@ -17,6 +17,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import dev.agentforge.core.run.Steps;
+import dev.agentforge.core.run.Steps.Step;
 import dev.agentforge.invoices.agents.CategorizerAgent;
 import dev.agentforge.invoices.agents.ExtractorAgent;
 import dev.agentforge.invoices.extract.FileType;
@@ -28,7 +30,6 @@ import dev.agentforge.invoices.model.ExpenseCategory;
 import dev.agentforge.invoices.model.Invoice;
 import dev.agentforge.invoices.pipeline.ProcessedInvoice.ExtractedFrom;
 import dev.agentforge.invoices.pipeline.ProcessedInvoice.Status;
-import dev.agentforge.invoices.pipeline.ProcessedInvoice.Step;
 import dev.agentforge.invoices.validate.InvoiceValidator;
 import dev.agentforge.invoices.validate.InvoiceValidator.Issue;
 import dev.agentforge.invoices.validate.InvoiceValidator.Level;
@@ -67,18 +68,14 @@ public class InvoicePipeline {
         ExtractedFrom extractedFrom;
         try {
             if (type == FileType.PDF) {
-                long t = System.nanoTime();
-                String text = PdfText.extract(bytes);
-                steps.add(new Step("read-pdf", false, millisSince(t)));
+                String text = Steps.time(steps, "read-pdf", false, () -> PdfText.extract(bytes));
                 if (PdfText.hasTextLayer(text)) {
-                    t = System.nanoTime();
-                    invoice = extractor.extract(text);
-                    steps.add(new Step("extractor (text)", true, millisSince(t)));
+                    invoice = Steps.time(steps, "extractor (text)", true, () -> extractor.extract(text));
                     extractedFrom = ExtractedFrom.TEXT;
                 } else {
-                    t = System.nanoTime();
-                    List<byte[]> pages = PageImages.render(bytes, maxPages);
-                    steps.add(new Step("render-pages (" + pages.size() + ")", false, millisSince(t)));
+                    int pageCount = Math.min(PageImages.pageCount(bytes), maxPages);
+                    List<byte[]> pages = Steps.time(steps, "render-pages (" + pageCount + ")", false,
+                            () -> PageImages.render(bytes, maxPages));
                     invoice = extractFromImages(pages, FileType.PNG, steps);
                     extractedFrom = ExtractedFrom.VISION;
                 }
@@ -90,24 +87,17 @@ public class InvoicePipeline {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Not a readable PDF: " + e.getMessage());
         }
 
-        long t = System.nanoTime();
-        List<Issue> issues = InvoiceValidator.validate(invoice);
-        steps.add(new Step("validator", false, millisSince(t)));
-
-        t = System.nanoTime();
-        List<LineCategory> categories = categorize(invoice);
-        steps.add(new Step("categorizer", true, millisSince(t)));
+        Invoice extracted = invoice;
+        List<Issue> issues = Steps.time(steps, "validator", false, () -> InvoiceValidator.validate(extracted));
+        List<LineCategory> categories = Steps.time(steps, "categorizer", true, () -> categorize(extracted));
 
         Status status = issues.stream().anyMatch(i -> i.level() == Level.ERROR) ? Status.NEEDS_REVIEW : Status.READY;
         return new ProcessedInvoice(null, fileName, status, extractedFrom, invoice, categories, issues, steps,
-                millisSince(start));
+                Steps.millisSince(start));
     }
 
     private Invoice extractFromImages(List<byte[]> images, FileType type, List<Step> steps) {
-        long t = System.nanoTime();
-        Invoice invoice = extractor.extractFromImages(pageContents(images, type));
-        steps.add(new Step("extractor (vision)", true, millisSince(t)));
-        return invoice;
+        return Steps.time(steps, "extractor (vision)", true, () -> extractor.extractFromImages(pageContents(images, type)));
     }
 
     /** An instruction followed by every page image. HIGH detail, because invoice text is small. */
@@ -148,7 +138,4 @@ public class InvoicePipeline {
                 .toList();
     }
 
-    private static long millisSince(long startNanos) {
-        return (System.nanoTime() - startNanos) / 1_000_000;
-    }
 }

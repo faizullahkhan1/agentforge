@@ -4,8 +4,10 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
 COPY pom.xml .
+COPY agentforge-core/pom.xml agentforge-core/
 COPY pr-reviewer/pom.xml pr-reviewer/
 COPY invoice-processor/pom.xml invoice-processor/
+COPY agentforge-core/src agentforge-core/src
 COPY invoice-processor/src invoice-processor/src
 
 # Shares the same Maven cache as pr-reviewer, so common libraries (Spring, LangChain4j) are downloaded once

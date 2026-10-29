@@ -3,6 +3,7 @@ package dev.agentforge.invoices.pipeline;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.agentforge.core.run.Steps.Step;
 import dev.agentforge.invoices.model.Categorization.LineCategory;
 import dev.agentforge.invoices.model.Invoice;
 import dev.agentforge.invoices.validate.InvoiceValidator.Issue;
@@ -28,10 +29,6 @@ public record ProcessedInvoice(
 
     /** TEXT = read from the PDF's text layer; VISION = read from page images (scan, photo, image file). */
     public enum ExtractedFrom { TEXT, VISION }
-
-    /** Trace of one pipeline step: which one, whether it is an AI agent or plain Java, and how long it took. */
-    public record Step(String name, boolean usesAi, long millis) {
-    }
 
     public ProcessedInvoice withId(long newId) {
         return new ProcessedInvoice(newId, fileName, status, extractedFrom, invoice, categories, issues, steps, totalMillis);
