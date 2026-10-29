@@ -4,6 +4,9 @@
 # Build output
 target/
 
+# Eval reports from local runs (a curated baseline lives in docs/evals.md)
+eval-results/
+
 # IDE
 .idea/
 *.iml
