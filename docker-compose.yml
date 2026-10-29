@@ -31,6 +31,8 @@ services:
       OPENAI_JUDGE_MODEL: ${OPENAI_JUDGE_MODEL:-gpt-4.1}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      REVIEW_MAX_FILES: ${REVIEW_MAX_FILES:-5}
+      REVIEW_MAX_LINES: ${REVIEW_MAX_LINES:-800}
       # Inside the compose network, containers reach each other by service name ("postgres"), on the container port
       DB_URL: jdbc:postgresql://postgres:5432/agentforge
       POSTGRES_USER: ${POSTGRES_USER:-agentforge}
