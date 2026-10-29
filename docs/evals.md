@@ -92,6 +92,20 @@ What the clean-code false positives were, run by run:
 
 **Not done on purpose:** telling the judge "a single `IN (...)` query is not N+1". That would fix this one sample without teaching the system anything general, which is overfitting to the eval. Precision work should start by adding more clean and buggy samples.
 
+## Change 2: extract `agentforge-core` (2026-10-29, 3 runs)
+
+A refactor: shared code (model setup, parallel agent calls, step timing, eval helpers) moved into a new library module. No prompts or logic changed, so the numbers should stay within normal run-to-run variation.
+
+| | Before (change 1) | After the refactor |
+|---|---|---|
+| PR reviewer recall (team) | 100% | 100% |
+| Noise on buggy code (per run) | 0.4 | 0.7 |
+| False positives on clean code (MEDIUM+, per run) | 2.0 | 1.3 |
+| Invoices: values read correctly (text / vision) | 100% / 94% | 100% / 94% |
+| Invoices: silent misreads | 0 | 0 |
+
+The same findings appear as before ("`ids` may be null", "N+1 query", "returning null"), in slightly different proportions, which is what 3 runs of sampling noise looks like. The invoice results, including which value each scan misreads, are identical.
+
 ## Ideas this baseline suggests
 
 - Try a stronger model for the bug agent only, to see whether integer division gets found, and re-run to compare.

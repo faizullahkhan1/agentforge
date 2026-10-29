@@ -15,6 +15,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import dev.agentforge.core.ai.OpenAiModels;
+import dev.agentforge.core.eval.EvalSupport;
 import dev.agentforge.invoices.agents.CategorizerAgent;
 import dev.agentforge.invoices.agents.ExtractorAgent;
 import dev.agentforge.invoices.eval.InvoiceScorer.ExpectedInvoice;
@@ -24,7 +26,6 @@ import dev.agentforge.invoices.extract.FileType;
 import dev.agentforge.invoices.pipeline.InvoicePipeline;
 import dev.agentforge.invoices.pipeline.ProcessedInvoice;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
 
 /**
@@ -122,8 +123,7 @@ class InvoiceEval {
 
     /** Same agents and settings as the app (application.yml), built without Spring. */
     private static InvoicePipeline buildPipeline(String apiKey, String model) {
-        ChatModel chat = OpenAiChatModel.builder().apiKey(apiKey).modelName(model).temperature(0.0)
-                .responseFormat("json_schema").strictJsonSchema(true).build();
+        ChatModel chat = OpenAiModels.structuredOutput(apiKey, model, 0.0);
         return new InvoicePipeline(AiServices.create(ExtractorAgent.class, chat),
                 AiServices.create(CategorizerAgent.class, chat), new ObjectMapper(), 3);
     }

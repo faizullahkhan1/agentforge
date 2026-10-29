@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import dev.agentforge.core.ai.OpenAiModels;
+import dev.agentforge.core.eval.EvalSupport;
 import dev.agentforge.prreviewer.eval.ReviewScorer.Expected;
 import dev.agentforge.prreviewer.eval.ReviewScorer.RunScore;
 import dev.agentforge.prreviewer.review.ReviewFinding;
@@ -28,7 +30,6 @@ import dev.agentforge.prreviewer.review.agents.JudgeAgent;
 import dev.agentforge.prreviewer.review.agents.PerformanceReviewAgent;
 import dev.agentforge.prreviewer.review.agents.SecurityReviewAgent;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
 
 /**
@@ -158,10 +159,8 @@ class ReviewEval {
 
     /** Same agents and settings as the app (application.yml + JudgeConfig), built without Spring. */
     private static ReviewService buildReviewer(String apiKey, String model, String judgeModel) {
-        ChatModel specialists = OpenAiChatModel.builder().apiKey(apiKey).modelName(model).temperature(0.2)
-                .responseFormat("json_schema").strictJsonSchema(true).build();
-        ChatModel judge = OpenAiChatModel.builder().apiKey(apiKey).modelName(judgeModel).temperature(0.0)
-                .responseFormat("json_schema").strictJsonSchema(true).build();
+        ChatModel specialists = OpenAiModels.structuredOutput(apiKey, model, 0.2);
+        ChatModel judge = OpenAiModels.structuredOutput(apiKey, judgeModel, 0.0);
         return new ReviewService(
                 AiServices.create(GeneralistReviewAgent.class, specialists),
                 AiServices.create(SecurityReviewAgent.class, specialists),

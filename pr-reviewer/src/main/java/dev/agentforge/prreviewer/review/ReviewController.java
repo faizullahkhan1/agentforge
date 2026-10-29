@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import dev.agentforge.core.run.Steps;
 import dev.agentforge.prreviewer.runs.ReviewRunRepository;
 import dev.agentforge.prreviewer.runs.ReviewRunRepository.Kind;
 import dev.agentforge.prreviewer.runs.ReviewRunRepository.Trigger;
@@ -51,7 +52,7 @@ public class ReviewController {
             runs.complete(runId, null, report.findings().size(), null, report.totalMillis());
             return report;
         } catch (RuntimeException e) {
-            runs.fail(runId, e.getMessage(), (System.nanoTime() - start) / 1_000_000);
+            runs.fail(runId, e.getMessage(), Steps.millisSince(start));
             throw e;
         }
     }

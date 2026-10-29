@@ -4,8 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.agentforge.core.ai.OpenAiModels;
 import dev.langchain4j.service.AiServices;
 
 /**
@@ -20,13 +19,6 @@ class JudgeConfig {
     @Bean
     JudgeAgent judgeAgent(@Value("${langchain4j.open-ai.chat-model.api-key}") String apiKey,
                           @Value("${agentforge.judge.model-name}") String modelName) {
-        ChatModel judgeModel = OpenAiChatModel.builder()
-                .apiKey(apiKey)
-                .modelName(modelName)
-                .temperature(0.0)
-                .responseFormat("json_schema")
-                .strictJsonSchema(true)
-                .build();
-        return AiServices.create(JudgeAgent.class, judgeModel);
+        return AiServices.create(JudgeAgent.class, OpenAiModels.structuredOutput(apiKey, modelName, 0.0));
     }
 }

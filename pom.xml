@@ -19,8 +19,9 @@
     <name>AgentForge</name>
     <description>Java agent orchestration engine and the apps built on it</description>
 
-    <!-- Each app/library is a module. agentforge-core (the shared engine) gets extracted in Phase 4. -->
+    <!-- agentforge-core is the shared library; the two apps depend on it. -->
     <modules>
+        <module>agentforge-core</module>
         <module>pr-reviewer</module>
         <module>invoice-processor</module>
     </modules>
@@ -70,6 +71,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>dev.agentforge</groupId>
+                <artifactId>agentforge-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-bom</artifactId>
