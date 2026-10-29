@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -222,15 +224,50 @@ public class ReviewService {
         return finding;
     }
 
-    /** Two agents may report the same problem: keep one per line + category, the most severe. */
+    /**
+     * Two agents may report the same problem: keep one, the most severe. Same problem = same line,
+     * same category AND similar titles. Line + category alone isn't enough: "division by zero" and
+     * "integer division loses decimals" are both BUGs on the same line, and both are real.
+     */
     static <T> List<T> dedupe(List<T> items, Function<T, ReviewFinding> findingOf) {
-        Map<String, T> byKey = new LinkedHashMap<>();
+        List<T> kept = new ArrayList<>();
         for (T item : items) {
             ReviewFinding f = findingOf.apply(item);
-            byKey.merge(f.line() + ":" + f.category(), item,
-                    (a, b) -> findingOf.apply(a).severity().compareTo(findingOf.apply(b).severity()) <= 0 ? a : b);
+            int duplicateOf = -1;
+            for (int i = 0; i < kept.size(); i++) {
+                ReviewFinding k = findingOf.apply(kept.get(i));
+                if (k.line() == f.line() && k.category() == f.category() && similarTitles(k.title(), f.title())) {
+                    duplicateOf = i;
+                    break;
+                }
+            }
+            if (duplicateOf < 0) {
+                kept.add(item);
+            } else if (f.severity().compareTo(findingOf.apply(kept.get(duplicateOf)).severity()) < 0) {
+                kept.set(duplicateOf, item); // more severe version of the same problem
+            }
         }
-        return List.copyOf(byKey.values());
+        return List.copyOf(kept);
+    }
+
+    /** At least half of the meaningful words shared: "SQL injection risk" ~ "SQL Injection vulnerability". */
+    static boolean similarTitles(String a, String b) {
+        Set<String> wordsA = titleWords(a);
+        Set<String> wordsB = titleWords(b);
+        if (wordsA.isEmpty() || wordsB.isEmpty()) {
+            return true; // nothing to tell them apart by
+        }
+        Set<String> shared = new HashSet<>(wordsA);
+        shared.retainAll(wordsB);
+        Set<String> all = new HashSet<>(wordsA);
+        all.addAll(wordsB);
+        return shared.size() * 2 >= all.size();
+    }
+
+    private static Set<String> titleWords(String title) {
+        return title == null ? Set.of() : Arrays.stream(title.toLowerCase(Locale.ROOT).split("[^a-z0-9+]+"))
+                .filter(w -> w.length() >= 3)
+                .collect(Collectors.toSet());
     }
 
     private static String summarize(List<ReviewFinding> findings, int agentCount) {

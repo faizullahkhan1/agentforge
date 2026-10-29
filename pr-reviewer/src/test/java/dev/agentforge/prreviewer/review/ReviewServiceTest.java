@@ -69,6 +69,33 @@ class ReviewServiceTest {
     }
 
     @Test
+    void dedupeKeepsDifferentProblemsOnTheSameLine() {
+        // Real case from the eval: both are BUGs on line 37, and both are real
+        List<ReviewFinding> result = ReviewService.dedupe(List.of(
+                titled(37, Category.BUG, Severity.HIGH, "Possible division by zero"),
+                titled(37, Category.BUG, Severity.MEDIUM, "Integer division truncates the average")), Function.identity());
+
+        assertThat(result).extracting(ReviewFinding::title)
+                .containsExactly("Possible division by zero", "Integer division truncates the average");
+    }
+
+    @Test
+    void dedupeMergesTheSameProblemWordedDifferentlyKeepingTheMostSevere() {
+        List<ReviewFinding> result = ReviewService.dedupe(List.of(
+                titled(12, Category.SECURITY, Severity.HIGH, "SQL injection risk"),
+                titled(12, Category.SECURITY, Severity.CRITICAL, "SQL Injection vulnerability")), Function.identity());
+
+        assertThat(result).extracting(ReviewFinding::severity).containsExactly(Severity.CRITICAL);
+    }
+
+    @Test
+    void titleSimilarityNeedsHalfTheMeaningfulWords() {
+        assertThat(ReviewService.similarTitles("Hard-coded secret", "Hard-coded database password")).isFalse();
+        assertThat(ReviewService.similarTitles("Resource leak: ResultSet not closed", "ResultSet not closed")).isTrue();
+        assertThat(ReviewService.similarTitles("N+1 query problem", "N+1 query in loop")).isTrue();
+    }
+
+    @Test
     void judgeVerdictsDropKeepAndChangeSeverity() {
         List<Candidate> candidates = List.of(
                 new Candidate(1, "security", finding(5, "return total / users.size();", Category.BUG, Severity.LOW)),
@@ -99,6 +126,10 @@ class ReviewServiceTest {
 
         assertThat(judgement.findings()).extracting(ReviewFinding::line).containsExactly(5, 3);
         assertThat(judgement.added()).isEqualTo(1);
+    }
+
+    private static ReviewFinding titled(int line, Category category, Severity severity, String title) {
+        return new ReviewFinding(line, "code", severity, category, title, "explanation", "suggestion");
     }
 
     private static ReviewFinding finding(int line, String code, Category category, Severity severity) {
