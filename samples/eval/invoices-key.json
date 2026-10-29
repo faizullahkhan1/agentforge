@@ -1,0 +1,54 @@
+{
+  "_comment": "Answer key for the invoice eval: the true values printed on each invoice. Text and numbers are compared ignoring case and number formatting (5 = 5.0000).",
+  "samples": [
+    {
+      "file": "samples/invoices/cloudnest-invoice.pdf",
+      "expectedStatus": "READY",
+      "expectedErrors": [],
+      "fields": { "vendorName": "CloudNest Software Inc.", "invoiceNumber": "CN-2026-0417", "issueDate": "2026-10-03",
+                  "dueDate": "2026-11-02", "currency": "USD", "subtotal": "2045.00", "tax": "163.60", "total": "2208.60" },
+      "lines": [
+        { "quantity": "5", "unitPrice": "240.00", "amount": "1200.00", "category": "SOFTWARE_AND_SUBSCRIPTIONS" },
+        { "quantity": "6", "unitPrice": "95.00",  "amount": "570.00",  "category": "PROFESSIONAL_SERVICES" },
+        { "quantity": "5", "unitPrice": "55.00",  "amount": "275.00",  "category": "HARDWARE_AND_EQUIPMENT" }
+      ]
+    },
+    {
+      "file": "samples/invoices/printhub-invoice.pdf",
+      "expectedStatus": "NEEDS_REVIEW",
+      "_comment": "Line 2 really is wrong on the invoice: 2 x 89.00 is 178.00, but it says 198.00.",
+      "expectedErrors": ["lineItems[1].amount"],
+      "fields": { "vendorName": "PrintHub GmbH", "invoiceNumber": "RE-88231", "issueDate": "2026-09-15",
+                  "dueDate": "2026-09-29", "currency": "EUR", "subtotal": "613.00", "tax": "116.47", "total": "729.47" },
+      "lines": [
+        { "quantity": "5000", "unitPrice": "0.08",  "amount": "400.00", "category": "MARKETING_AND_ADVERTISING" },
+        { "quantity": "2",    "unitPrice": "89.00", "amount": "198.00", "category": "MARKETING_AND_ADVERTISING" },
+        { "quantity": "1",    "unitPrice": "15.00", "amount": "15.00",  "category": "SHIPPING_AND_DELIVERY" }
+      ]
+    },
+    {
+      "file": "samples/invoices/cloudnest-invoice-photo.jpg",
+      "expectedStatus": "READY",
+      "expectedErrors": [],
+      "fields": { "vendorName": "CloudNest Software Inc.", "invoiceNumber": "CN-2026-0417", "issueDate": "2026-10-03",
+                  "dueDate": "2026-11-02", "currency": "USD", "subtotal": "2045.00", "tax": "163.60", "total": "2208.60" },
+      "lines": [
+        { "quantity": "5", "unitPrice": "240.00", "amount": "1200.00", "category": "SOFTWARE_AND_SUBSCRIPTIONS" },
+        { "quantity": "6", "unitPrice": "95.00",  "amount": "570.00",  "category": "PROFESSIONAL_SERVICES" },
+        { "quantity": "5", "unitPrice": "55.00",  "amount": "275.00",  "category": "HARDWARE_AND_EQUIPMENT" }
+      ]
+    },
+    {
+      "file": "samples/invoices/printhub-invoice-scanned.pdf",
+      "expectedStatus": "NEEDS_REVIEW",
+      "expectedErrors": ["lineItems[1].amount"],
+      "fields": { "vendorName": "PrintHub GmbH", "invoiceNumber": "RE-88231", "issueDate": "2026-09-15",
+                  "dueDate": "2026-09-29", "currency": "EUR", "subtotal": "613.00", "tax": "116.47", "total": "729.47" },
+      "lines": [
+        { "quantity": "5000", "unitPrice": "0.08",  "amount": "400.00", "category": "MARKETING_AND_ADVERTISING" },
+        { "quantity": "2",    "unitPrice": "89.00", "amount": "198.00", "category": "MARKETING_AND_ADVERTISING" },
+        { "quantity": "1",    "unitPrice": "15.00", "amount": "15.00",  "category": "SHIPPING_AND_DELIVERY" }
+      ]
+    }
+  ]
+}

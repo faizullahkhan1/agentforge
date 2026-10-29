@@ -1,0 +1,24 @@
+{
+  "_comment": "Answer key for the PR reviewer eval. A finding matches an expected issue when its line is in the range AND its title or explanation contains one of the keywords (case-insensitive). Findings that match nothing are counted as unexpected, and listed for a human to judge.",
+  "samples": [
+    {
+      "file": "samples/UserService.java",
+      "language": "Java",
+      "expected": [
+        { "id": "hardcoded-password", "lines": [7, 7],   "keywords": ["password", "secret", "credential", "hard-coded", "hardcoded"] },
+        { "id": "sql-injection",      "lines": [11, 12], "keywords": ["injection"] },
+        { "id": "null-connection",    "lines": [8, 12],  "keywords": ["null", "initializ"] },
+        { "id": "n-plus-one-queries", "lines": [21, 24], "keywords": ["n+1", "loop", "each id", "per id", "batch"] },
+        { "id": "resource-leak",      "lines": [11, 30], "keywords": ["leak", "close", "try-with-resources"] },
+        { "id": "division-by-zero",   "lines": [37, 37], "keywords": ["zero", "empty"] },
+        { "id": "integer-division",   "lines": [37, 37], "keywords": ["integer division", "decimal", "truncat", "precision", "fraction"] }
+      ]
+    },
+    {
+      "file": "samples/eval/CleanUserService.java",
+      "language": "Java",
+      "_comment": "Well-written code with no known problems: every MEDIUM+ finding here is a false positive.",
+      "expected": []
+    }
+  ]
+}

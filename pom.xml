@@ -30,7 +30,43 @@
         <langchain4j.version>1.23.0</langchain4j.version>
         <langchain4j-spring.version>1.23.0-beta33</langchain4j-spring.version>
         <pdfbox.version>3.0.8</pdfbox.version>
+        <!-- Evals call the real OpenAI API (costs money, results vary), so they are skipped unless -Peval -->
+        <test.excludedGroups>eval</test.excludedGroups>
+        <test.groups></test.groups>
     </properties>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <excludedGroups>${test.excludedGroups}</excludedGroups>
+                        <groups>${test.groups}</groups>
+                        <!-- Surefire's defaults only pick up *Test / *Tests / *TestCase classes; add *Eval.
+                             The eval tag above still keeps them out of normal runs. -->
+                        <includes>
+                            <include>**/*Test.java</include>
+                            <include>**/*Tests.java</include>
+                            <include>**/*Eval.java</include>
+                        </includes>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <!-- mvn -Peval test -pl pr-reviewer   (options: -Deval.runs=3, see each *Eval class) -->
+        <profile>
+            <id>eval</id>
+            <properties>
+                <test.excludedGroups></test.excludedGroups>
+                <test.groups>eval</test.groups>
+            </properties>
+        </profile>
+    </profiles>
 
     <dependencyManagement>
         <dependencies>

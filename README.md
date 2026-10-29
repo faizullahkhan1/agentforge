@@ -61,7 +61,8 @@ flowchart LR
 
 | Decision | Why |
 |---|---|
-| Several focused agents instead of one | On the same test file one generalist found 3 issues; the specialists found 7–8, in less time because they run in parallel. |
+| Several focused agents instead of one | Measured over repeated runs: one generalist finds 43% of the known problems, the specialist team 89–100%, in about the same time because they run in parallel ([evals](docs/evals.md)). |
+| A judge after the specialists | Specialists alone invent problems in clean code (3.7 MEDIUM+ false positives per run); the judge brings that down to about 1. |
 | The judge returns verdicts, Java applies them | Every drop has a stored reason, and a finding the judge forgets to mention is kept, not silently lost. |
 | A stronger model only for the judge | One call per file makes a better model affordable. With gpt-4o-mini as judge it dropped findings for the wrong reasons; gpt-4.1 didn't. |
 | Comment only on changed lines | Only fair to flag what the PR introduced, and GitHub rejects inline comments outside the diff. Older problems are stored, not posted. |
@@ -232,6 +233,33 @@ invoice-processor/src/main/java/dev/agentforge/invoices/
 samples/                              buggy code, sample invoices, saved results
 ```
 
+### Evals
+
+LLM output varies, so "it worked when I tried it" isn't evidence. The evals run the real agents on samples with a known answer key, several times, and score every run. They're opt-in, because they call the paid API:
+
+```bash
+mvn -Peval test -pl pr-reviewer -Deval.runs=3 -Deval.modes=single,team-nojudge,team
+mvn -Peval test -pl invoice-processor -Deval.runs=3
+```
+
+Results from [docs/evals.md](docs/evals.md):
+
+| PR reviewer | Recall | False positives on clean code (MEDIUM+, per run) |
+|---|---|---|
+| One generalist agent | 43% | 1.0 |
+| 3 specialists, no judge | 90% | 3.7 |
+| 3 specialists + judge | 89% | 1.0 |
+| **3 specialists + judge, after fixing integer division** | **100%** | **2.0** (one is a debatable null check) |
+
+The evals also found a bug in our own deduplication: two different problems on the same line (division by zero *and* integer division) were merged into one. See [change 1](docs/evals.md#change-1-integer-division-2026-10-29-5-runs).
+
+| Invoice processor | Values read correctly | Silent misreads |
+|---|---|---|
+| Digital PDFs (text) | 100% | 0 |
+| Scan and photo (vision) | 94% (one misread per file, every run) | **0**: every misread was caught |
+
+The scoring logic itself is unit-tested and runs in every normal `mvn test`.
+
 ## Known limitations
 
 - **LLM output varies from run to run.** The same file can get different findings, and a scan can be misread differently each time. The Java checks catch inconsistent values, but a misread that still adds up would pass.
@@ -244,6 +272,6 @@ samples/                              buggy code, sample invoices, saved results
 
 - [x] PR Reviewer: parallel specialists + judge, GitHub reviews, signed webhooks, review history
 - [x] Invoice Processor: text and vision extraction, Java validation, categories, duplicates, review queue with corrections, CSV export
-- [ ] Evaluation suite: known-bug and known-invoice samples, scored automatically across repeated runs
+- [x] Evaluation suite: answer keys, repeated runs, recall / false positives / silent misreads ([baseline](docs/evals.md))
 - [ ] `agentforge-core`: extract the shared agent/pipeline engine from both apps
 - [ ] Trace and cost dashboard, GitHub App, deployment
