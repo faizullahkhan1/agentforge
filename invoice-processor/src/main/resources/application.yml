@@ -11,6 +11,15 @@ spring:
   threads:
     virtual:
       enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/agentforge}
+    username: ${POSTGRES_USER:agentforge}
+    password: ${POSTGRES_PASSWORD:agentforge}
+  # Same database as pr-reviewer, separate schema: its own tables AND its own flyway_schema_history,
+  # so the two apps' V1, V2... migrations never collide. Flyway creates the schema if it's missing.
+  flyway:
+    schemas: invoices
+    default-schema: invoices
 
 langchain4j:
   open-ai:
@@ -25,6 +34,11 @@ invoices:
   vision:
     # Scanned PDFs: how many pages to send to the vision model (each page image costs tokens)
     max-pages: ${INVOICE_MAX_PAGES:3}
+
+server:
+  error:
+    # Our error messages are written for the client ("approving needs a note..."); Spring hides them by default
+    include-message: always
 
 management:
   endpoints:

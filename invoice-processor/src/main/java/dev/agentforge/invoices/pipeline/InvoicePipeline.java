@@ -99,7 +99,7 @@ public class InvoicePipeline {
         steps.add(new Step("categorizer", true, millisSince(t)));
 
         Status status = issues.stream().anyMatch(i -> i.level() == Level.ERROR) ? Status.NEEDS_REVIEW : Status.READY;
-        return new ProcessedInvoice(fileName, status, extractedFrom, invoice, categories, issues, steps,
+        return new ProcessedInvoice(null, fileName, status, extractedFrom, invoice, categories, issues, steps,
                 millisSince(start));
     }
 

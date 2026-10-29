@@ -51,6 +51,12 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       INVOICE_MAX_PAGES: ${INVOICE_MAX_PAGES:-3}
+      DB_URL: jdbc:postgresql://postgres:5432/agentforge
+      POSTGRES_USER: ${POSTGRES_USER:-agentforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentforge}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   # GitHub can't reach "localhost" on your laptop. smee.io gives you a public URL; GitHub sends
   # webhooks there, and this container keeps a connection open to smee.io and forwards each
