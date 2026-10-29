@@ -38,6 +38,11 @@ agentforge:
     max-files: ${REVIEW_MAX_FILES:5}
     max-lines-per-file: ${REVIEW_MAX_LINES:800}
 
+server:
+  error:
+    # Our error messages are written for the client ("code must not be empty"); Spring hides them by default
+    include-message: always
+
 management:
   endpoints:
     web:

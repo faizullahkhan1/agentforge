@@ -41,6 +41,23 @@ services:
       postgres:
         condition: service_healthy         # wait until Postgres actually accepts connections
 
+  invoice-processor:
+    build:
+      context: .
+      dockerfile: invoice-processor/Dockerfile
+    ports:
+      - "${INVOICE_APP_PORT:-8091}:8080"    # same container port as pr-reviewer is fine: each container has its own network
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      INVOICE_MAX_PAGES: ${INVOICE_MAX_PAGES:-3}
+      DB_URL: jdbc:postgresql://postgres:5432/agentforge
+      POSTGRES_USER: ${POSTGRES_USER:-agentforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentforge}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # GitHub can't reach "localhost" on your laptop. smee.io gives you a public URL; GitHub sends
   # webhooks there, and this container keeps a connection open to smee.io and forwards each
   # event to the app over the compose network. Not needed once the app is deployed publicly.
